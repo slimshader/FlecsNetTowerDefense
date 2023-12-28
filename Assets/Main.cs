@@ -40,6 +40,19 @@ public class grid<T>
     public T this[int x, int y] => _values[y * _width + x];
 }
 
+public class prefabs
+{
+    public struct Path { };
+    public struct Tile { };
+    public struct Enemy { };
+
+    public class materials
+    {
+        public struct Metal { };
+    }
+}
+
+
 public struct Level
 {
     public Level(grid<bool> arg_map, Position2 spawn)
@@ -56,8 +69,16 @@ public class Main : MonoBehaviour
 {
     const int TileCountX = 10;
     const int TileCountZ = 10;
+    const float TileSize = 3.0f;
+    const float TileSpacing = 0;
+    const float TileHeight = 0.5f;
+    const float PathHeight = 0.1f;
+    const float EnemySize = 0.7f;
+    const float EnemySpeed = 4.0f;
+    const float EnemySpawnInterval = 0.2f;
 
     World ecs;
+    private Routine spawnEnemy;
 
     void Start()
     {
@@ -67,48 +88,66 @@ public class Main : MonoBehaviour
             name: "asd",
             filter: ecs.FilterBuilder<Position, Color, Box>(),
             observer: ecs.ObserverBuilder().Event(Ecs.OnSet),
-            callback: (Iter i, Column<Position> p, Column<Color> c, Column<Box> b) =>
+            callback: (Iter it, int e) =>
             {
-                foreach (var e in i)
+                var p = it.Field<Position>(1);
+                var c = it.Field<Color>(2);
+                var b = it.Field<Box>(3);
+
                 {
+                    Vector3 pos = new(p[e].X, p[e].Y, p[e].Z);
                     var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    v.transform.position = new(p[e].X, p[e].Y, p[e].Z);
                     v.transform.localScale = new(b[e].X, b[e].Y, b[e].Z);
+                    v.transform.position = pos;
                     v.GetComponent<Renderer>().material.color = c[e];
                 }
             });
 
 
-        ecs.Add<Game>();
+        ecs.Set<Game>(new Game());
 
         init_game();
         init_prefabs();
         init_level();
+        init_systems();
     }
 
-    // Update is called once per frame
     void Update()
     {
+        ecs.Progress(Time.deltaTime);
+    }
 
+    void init_systems()
+    {
+        spawnEnemy = ecs.Routine(filter: ecs.FilterBuilder<Game>(), callback: (Iter i, Column<Game> g) =>
+        {
+            Debug.Log("spawn");
+
+            //foreach (var e in i)
+            {
+                var game = ecs.Get<Game>();
+                var lvl = game.Level.Get<Level>();
+
+                i.World().Entity().IsA<prefabs.Enemy>()
+                .Set<Direction>(new(0))
+                .Set<Position>(new(lvl.spawn_point.X, 1.2f, lvl.spawn_point.Y));
+            }
+        });
+
+        spawnEnemy.Interval(2);
     }
 
     void init_game()
     {
-        var g = ecs.Get<Game>();
+        ref var g = ref ecs.GetMut<Game>();
         g.center = new(to_x(TileCountX / 2), 0, to_z(TileCountZ / 2));
         g.size = TileCountX * (TileSize + TileSpacing) + 2;
     }
-
-    const float TileSize = 3.0f;
-    const float TileSpacing = 0;
-    const float TileHeight = 0.5f;
-    const float PathHeight = 0.1f;
 
     float to_coord(float x)
     {
         return x * (TileSpacing + TileSize) - (TileSize / 2.0f);
     }
-
 
     float to_x(float x)
     {
@@ -120,11 +159,6 @@ public class Main : MonoBehaviour
         return to_coord(z);
     }
 
-    class prefabs
-    {
-        public struct Path { };
-        public struct Tile { };
-    }
 
     void init_prefabs()
     {
@@ -135,11 +169,21 @@ public class Main : MonoBehaviour
         ecs.Prefab<prefabs.Path>()
             .Set<Color>(new(0.2f, 0.2f, 0.2f))
             .Set<Box>(new(TileSize + TileSpacing, PathHeight, TileSize + TileSpacing));
+
+        ecs.Prefab<prefabs.materials.Metal>()
+            .Set<Color>(new(.1f, .1f, .1f));
+
+        ecs.Prefab<prefabs.Enemy>()
+            .IsA<prefabs.materials.Metal>()
+            .Add<Enemy>()
+            .Add<Health>()
+            .SetOverride<Color>(new(.05f, .05f, .05f))
+            .Set<Box>(new(EnemySize, EnemySize, EnemySize));
     }
 
     void init_level()
     {
-        Game g = ecs.Get<Game>();
+        ref Game g = ref ecs.GetMut<Game>();
 
         grid<bool> path = new grid<bool>(TileCountX, TileCountZ);
         path.set(0, 1, true); path.set(1, 1, true); path.set(2, 1, true);
