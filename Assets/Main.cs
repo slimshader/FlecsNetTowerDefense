@@ -88,19 +88,12 @@ public class Main : MonoBehaviour
             name: "asd",
             filter: ecs.FilterBuilder<Position, Color, Box>(),
             observer: ecs.ObserverBuilder().Event(Ecs.OnSet),
-            callback: (Iter it, int e) =>
+            callback: (Iter it, int i, ref Position p, ref Color c, ref Box b) =>
             {
-                var p = it.Field<Position>(1);
-                var c = it.Field<Color>(2);
-                var b = it.Field<Box>(3);
-
-                {
-                    Vector3 pos = new(p[e].X, p[e].Y, p[e].Z);
-                    var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    v.transform.localScale = new(b[e].X, b[e].Y, b[e].Z);
-                    v.transform.position = pos;
-                    v.GetComponent<Renderer>().material.color = c[e];
-                }
+                var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                v.transform.localScale = new(b.X, b.Y, b.Z);
+                v.transform.position = new(p.X, p.Y, p.Z);
+                v.GetComponent<Renderer>().material.color = c;
             });
 
 
@@ -119,22 +112,19 @@ public class Main : MonoBehaviour
 
     void init_systems()
     {
-        spawnEnemy = ecs.Routine(filter: ecs.FilterBuilder<Game>(), callback: (Iter i, Column<Game> g) =>
+        spawnEnemy = ecs.Routine(filter: ecs.FilterBuilder<Game>(), callback: (Iter it, int i, ref Game g) =>
         {
             Debug.Log("spawn");
 
-            //foreach (var e in i)
-            {
-                var game = ecs.Get<Game>();
-                var lvl = game.Level.Get<Level>();
+            var game = ecs.Get<Game>();
+            var lvl = game.Level.Get<Level>();
 
-                i.World().Entity().IsA<prefabs.Enemy>()
-                .Set<Direction>(new(0))
-                .Set<Position>(new(lvl.spawn_point.X, 1.2f, lvl.spawn_point.Y));
-            }
+            it.World().Entity().IsA<prefabs.Enemy>()
+            .Set<Direction>(new(0))
+            .Set<Position>(new(lvl.spawn_point.X, 1.2f, lvl.spawn_point.Y));
         });
 
-        spawnEnemy.Interval(2);
+        spawnEnemy.Interval(EnemySpawnInterval);
     }
 
     void init_game()
