@@ -1,6 +1,7 @@
 using Flecs.NET.Core;
 using UnityEngine;
 using System.Collections.Generic;
+using static Flecs.NET.Bindings.Native;
 
 public struct Game
 {
@@ -84,11 +85,14 @@ public class Main : MonoBehaviour
     {
         ecs = World.Create();
 
-        ecs.Observer(
-            name: "asd",
-            filter: ecs.FilterBuilder<Position, Color, Box>(),
-            observer: ecs.ObserverBuilder().Event(Ecs.OnSet),
-            callback: (Iter it, int i, ref Position p, ref Color c, ref Box b) =>
+        ecs.Set(new EcsRest()
+        {
+            port = 9003,
+        });
+
+        ecs.Observer()
+            .Event(Ecs.OnAdd)
+            .Each((Iter it, int i, ref Position p, ref Color c, ref Box b) =>
             {
                 var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 v.transform.localScale = new(b.X, b.Y, b.Z);
@@ -112,7 +116,7 @@ public class Main : MonoBehaviour
 
     void init_systems()
     {
-        spawnEnemy = ecs.Routine(filter: ecs.FilterBuilder<Game>(), callback: (Iter it, int i, ref Game g) =>
+        spawnEnemy = ecs.Routine().Each((Iter it, int i, ref Game g) =>
         {
             Debug.Log("spawn");
 
