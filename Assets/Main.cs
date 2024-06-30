@@ -1,6 +1,7 @@
 using Flecs.NET.Core;
 using System.Collections.Generic;
 using UnityEngine;
+using static Flecs.NET.Bindings.Native;
 
 public struct Game
 {
@@ -79,25 +80,39 @@ public class Main : MonoBehaviour
 
     World ecs;
     private Routine spawnEnemy;
+    private Routine _moveEnemy;
+    private Mesh _cubeMesh;
+
+
+    // Direction vector. During pathfinding enemies will cycle through this vector
+    // to find the next direction to turn to.
+    static readonly Position2[] dir = {
+        new (-1, 0),
+        new (0, -1),
+        new (1, 0),
+        new (0, 1)};
+
 
     void Start()
     {
         ecs = World.Create();
 
-        //ecs.Set(new EcsRest()
-        //{
-        //    port = 9003,
-        //});
+        ecs.Set(new EcsRest());
 
-        ecs.Observer<Position, Color, Box>()
-            .Event(Ecs.OnAdd)
-            .Each((Iter it, int i, ref Position p, ref Color c, ref Box b) =>
-            {
-                var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                v.transform.localScale = new(b.X, b.Y, b.Z);
-                v.transform.position = new(p.X, p.Y, p.Z);
-                v.GetComponent<Renderer>().material.color = c;
-            });
+        //ecs.Observer<Position, Color, Box>()
+        //    .With<Position>()
+        //    .With<Color>()
+        //    .With<Box>()
+        //    .Without<View>()
+        //    .Event(Ecs.OnSet)
+        //    .Each((Iter it, int i, ref Position p, ref Color c, ref Box b) =>
+        //    {
+        //        var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        //        v.transform.localScale = new(b.X, b.Y, b.Z);
+        //        v.transform.position = new(p.X, p.Y, p.Z);
+        //        v.GetComponent<Renderer>().material.color = c;
+        //        it.Entity(i).Set(new View() { GameObject = v.gameObject });
+        //    });
 
 
         ecs.Set<Game>(new Game());
@@ -106,11 +121,40 @@ public class Main : MonoBehaviour
         init_prefabs();
         init_level();
         init_systems();
+
+        var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        go.SetActive(false);
+        _cubeMesh = go.GetComponent<MeshFilter>().mesh;
+        Destroy(go);
+
+        _renderSystem = ecs.Routine<Position, Box, Color>().Each((Entity e, ref Position p, ref Box b, ref Color c) =>
+        {
+            if (!_renderParams.TryGetValue(c, out var rp))
+            {
+                rp = new MaterialPropertyBlock();
+                rp.SetColor("_Color", c);
+                _renderParams.Add(c, rp);
+            }
+
+            var mtx = Matrix4x4.Translate(new(p.X, p.Y, p.Z)) * Matrix4x4.Scale(new(b.X, b.Y, b.Z));
+
+            Graphics.DrawMesh(_cubeMesh, mtx, _baseMaterial, 0, null, 0, rp);
+        });
+
     }
+
+    public Material _baseMaterial;
+
+    private Dictionary<Color, MaterialPropertyBlock> _renderParams = new();
+    private Routine _renderSystem;
 
     void Update()
     {
         ecs.Progress(Time.deltaTime);
+
+        _moveEnemy.Run();
+
+        _renderSystem.Run();
     }
 
     void init_systems()
@@ -120,10 +164,18 @@ public class Main : MonoBehaviour
             var game = ecs.Get<Game>();
             var lvl = game.Level.Get<Level>();
 
-            it.World().Entity().IsA<prefabs.Enemy>()
+            ecs.Entity().IsA<prefabs.Enemy>()
             .Set<Direction>(new(0))
             .Set<Position>(new(lvl.spawn_point.X, 1.2f, lvl.spawn_point.Y));
         });
+
+        _moveEnemy = ecs.Routine<Position, Direction, Game>()
+            .TermAt(3).Singleton()
+            .Term<Enemy>()
+            .Each((Iter it, int i, ref Position p, ref Direction d, ref Game g) =>
+            {
+                MoveEnemy(it, i, ref p, ref d, ref g);
+            });
 
         spawnEnemy.Interval(EnemySpawnInterval);
     }
@@ -148,6 +200,21 @@ public class Main : MonoBehaviour
     float to_z(float z)
     {
         return to_coord(z);
+    }
+
+    float from_coord(float x)
+    {
+        return (x + (TileSize / 2.0f)) / (TileSpacing + TileSize);
+    }
+
+    float from_x(float x)
+    {
+        return from_coord(x + to_coord((TileCountX / 2.0f))) - 0.5f;
+    }
+
+    float from_z(float z)
+    {
+        return from_coord(z);
     }
 
 
@@ -222,6 +289,74 @@ public class Main : MonoBehaviour
                     //var e = ecs.Entity().Set<Position>(new(xc, TileHeight / 2, zc));
                 }
             }
+        }
+    }
+
+    bool find_path(in Position p, ref Direction d, in Level lvl)
+    {
+        // Check if enemy is in center of tile
+        float t_x = from_x(p.X);
+        float t_y = from_z(p.Z);
+        int ti_x = (int)t_x;
+        int ti_y = (int)t_y;
+        float td_x = t_x - ti_x;
+        float td_y = t_y - ti_y;
+
+        // If enemy is in center of tile, decide where to go next
+        if (td_x < 0.1 && td_y < 0.1)
+        {
+            grid<bool> tiles = lvl.map;
+
+            // Compute backwards direction so we won't try to go there
+            int backwards = (d.Value + 2) % 4;
+
+            // Find a direction that the enemy can move to
+            for (int i = 0; i < 3; i++)
+            {
+                int n_x = (int)(ti_x + dir[d.Value].X);
+                int n_y = (int)(ti_y + dir[d.Value].Y);
+
+                if (n_x >= 0 && n_x <= TileCountX)
+                {
+                    if (n_y >= 0 && n_y <= TileCountZ)
+                    {
+                        // Next tile is still on the grid, test if it's a path
+                        if (tiles[n_x, n_y])
+                        {
+                            // Next tile is a path, so continue along current direction
+                            return false;
+                        }
+                    }
+                }
+
+                // Try next direction. Make sure not to move backwards
+                do
+                {
+                    d.Value = (d.Value + 1) % 4;
+                } while (d.Value == backwards);
+            }
+
+            // If enemy was not able to find a next direction, it reached the end
+            return true;
+        }
+
+        return false;
+    }
+
+    void MoveEnemy(Iter it, int i, ref Position p, ref Direction d, ref Game g)
+    {
+        var lvl = g.Level.Get<Level>();
+
+        if (find_path(p, ref d, lvl))
+        {
+
+            Debug.Log("Destroying");
+            it.Entity(i).Destruct(); // Enemy made it to the end
+        }
+        else
+        {
+            p.X += dir[d.Value].X * EnemySpeed * it.DeltaTime();
+            p.Z += dir[d.Value].Y * EnemySpeed * it.DeltaTime();
         }
     }
 }
