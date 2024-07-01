@@ -70,8 +70,8 @@ public class prefabs
     {
         public struct Head
         {
-            struct BarrelLeft { }
-            struct BarrelRight { }
+            public struct BarrelLeft { }
+            public struct BarrelRight { }
         }
 
         public struct Barrel { }
@@ -108,13 +108,28 @@ public class Main : MonoBehaviour
     const float EnemySize = 0.7f;
     const float EnemySpeed = 4.0f;
     const float EnemySpawnInterval = 0.2f;
-    const float TurretFireInterval = 1.0f;
+
+    const float TurretRotateSpeed = 4.0f;
+    const float TurretFireInterval = 0.12f;
+    const float TurretRange = 5.0f;
+    const float TurretCannonOffset = 0.2f;
+    const float TurretCannonLength = 0.6f;
 
     World ecs;
-    private Routine spawnEnemy;
+    private Routine _spawnEnemy;
     private Routine _moveEnemy;
     private Mesh _cubeMesh;
 
+
+    struct RenderCommand
+    {
+        public Mesh Mesh;
+        public Matrix4x4 Transform;
+        public Material Material;
+        public MaterialPropertyBlock Properties;
+    }
+
+    List<RenderCommand> renderCommands = new List<RenderCommand>();
 
     // Direction vector. During pathfinding enemies will cycle through this vector
     // to find the next direction to turn to.
@@ -144,12 +159,30 @@ public class Main : MonoBehaviour
         _cubeMesh = go.GetComponent<MeshFilter>().mesh;
         Destroy(go);
 
-        //var q = ecs.QueryBuilder().Term<Position, Local>, Position>
+        _transformSystem = ecs.Routine<Position, GlobalPosition, GlobalPosition>()
+            .TermAt(2).Optional()
+            .TermAt(3).Parent().Cascade().Optional()
+            .Each((Entity e, ref Position p, ref GlobalPosition global, ref GlobalPosition parentGlobal) =>
+            {
+
+                var newGlobal = new GlobalPosition(new Vector3(p.X, p.Y, p.Z) +
+                    (Unsafe.IsNullRef(ref parentGlobal)
+                    ? Vector3.zero
+                    : parentGlobal.AsPrimitive()));
+
+                if (Unsafe.IsNullRef(ref global))
+                {
+                    e.Set(newGlobal);
+                }
+                else
+                {
+                    global = newGlobal;
+                }
+            });
 
 
-        _renderSystem = ecs.Routine<Position, Box, Color, Position>()
-            .TermAt(4).Parent().Cascade().Optional()
-            .Each((Entity e, ref Position p, ref Box b, ref Color c, ref Position pp) =>
+        _renderSystem = ecs.Routine<GlobalPosition, Box, Color>()            
+            .Each((Entity e, ref GlobalPosition p, ref Box b, ref Color c) =>
         {
             if (!_renderParams.TryGetValue(c, out var rp))
             {
@@ -158,35 +191,46 @@ public class Main : MonoBehaviour
                 _renderParams.Add(c, rp);
             }
 
-            var parentTransform = Matrix4x4.identity;
-            
-            if (!Unsafe.IsNullRef(ref pp))
-               parentTransform = Matrix4x4.Translate(new (pp.X, pp.Y, pp.Z));
+            var mtx = Matrix4x4.Translate(p.AsPrimitive()) * Matrix4x4.Scale(new(b.X, b.Y, b.Z));
 
-            var mtx = parentTransform * Matrix4x4.Translate(new(p.X, p.Y, p.Z)) * Matrix4x4.Scale(new(b.X, b.Y, b.Z));
-
-            Graphics.DrawMesh(_cubeMesh, mtx, _baseMaterial, 0, null, 0, rp);
-        });
-
+            renderCommands.Add(new RenderCommand
+            {
+                Mesh = _cubeMesh,
+                Transform = mtx,
+                Material = _baseMaterial,
+                Properties = rp
+            });
+            //Graphics.DrawMesh(_cubeMesh, mtx, _baseMaterial, 0, null, 0, rp);
+        });    
     }
 
     public Material _baseMaterial;
 
     private Dictionary<Color, MaterialPropertyBlock> _renderParams = new();
+    private Routine _transformSystem;
     private Routine _renderSystem;
 
     void Update()
     {
+        renderCommands.Clear();
+
         ecs.Progress(Time.deltaTime);
 
-        _moveEnemy.Run();
+        //_moveEnemy.Run();
 
-        _renderSystem.Run();
+        //_transformSystem.Run();
+
+        //_renderSystem.Run();
+
+        foreach (var cmd in renderCommands)
+        {
+            Graphics.DrawMesh(cmd.Mesh, cmd.Transform, cmd.Material, 0, null, 0, cmd.Properties);
+        }
     }
 
     void init_systems()
     {
-        spawnEnemy = ecs.Routine<Game>().Each((Iter it, int i, ref Game g) =>
+        _spawnEnemy = ecs.Routine<Game>().Each((Iter it, int i, ref Game g) =>
         {
             var game = ecs.Get<Game>();
             var lvl = game.Level.Get<Level>();
@@ -204,7 +248,7 @@ public class Main : MonoBehaviour
                 MoveEnemy(it, i, ref p, ref d, ref g);
             });
 
-        spawnEnemy.Interval(EnemySpawnInterval);
+        _spawnEnemy.Interval(EnemySpawnInterval);
     }
 
     void init_game()
@@ -282,25 +326,43 @@ public class Main : MonoBehaviour
             .SetOverride<Color>(new(.05f, .05f, .05f))
             .Set<Box>(new(EnemySize, EnemySize, EnemySize));
 
-        ecs.Prefab<Turret>();
+        // Turret
+        ecs.Prefab<prefabs.Turret>();
         ecs.Prefab<prefabs.Turret.Base>()
             .Slot()
             .Set(new Position(0, 0, 0));
+        //ecs.Prefab<prefabs.Turret.Head>()
+        //    .Slot();
 
         ecs.Prefab().IsA<prefabs.materials.Metal>()
             .ChildOf<prefabs.Turret.Base>()
             .Set(new Box(0.6f, 0.2f, 0.6f))
             .Set(new Position(0, 0.1f, 0));
 
+        ecs.Prefab().IsA<prefabs.materials.Metal>()
+            .ChildOf<prefabs.Turret.Base>()
+            .Set(new Box(0.4f, 0.6f, 0.4f))
+            .Set(new Position(0, 0.3f, 0));
+
+
 
         ecs.Prefab<prefabs.Cannon>()
             .IsA<prefabs.Turret>()
             .Set<Turret>(new (TurretFireInterval));
 
-        ecs.Prefab<prefabs.Cannon.Head>()
-            .IsA<prefabs.materials.CannonHead>()
-            .Set(new Box(0.8f, 0.4f, 0.8f))
-            .Set(new Position(0, 0.8f, 0));
+        //ecs.Prefab<prefabs.Cannon.Head>()
+        //    .IsA<prefabs.materials.CannonHead>()
+        //    .Set(new Box(0.8f, 0.4f, 0.8f))
+        //    .Set(new Position(0, 0.8f, 0));
+
+        //ecs.Prefab<prefabs.Cannon.Barrel>()
+        //    .IsA<prefabs.materials.Metal>()
+        //    .Set<Box>(new(0.8f, 0.14f, 0.14f));
+
+        //ecs.Prefab<prefabs.Cannon.Head.BarrelLeft>()
+        //    .SlotOf<prefabs.Cannon>()
+        //    .IsA<prefabs.Cannon.Barrel>()
+        //    .Set<Position>(new (TurretCannonLength, 0, -TurretCannonOffset));
     }
 
     void init_level()
@@ -365,7 +427,7 @@ public class Main : MonoBehaviour
 
                         if (Random.Range(0.0f, 1.0f) > .3f)
                         {
-                            e.IsA<prefabs.Cannon>();
+                            e.IsA<prefabs.Turret>();
                         }
                     }
 

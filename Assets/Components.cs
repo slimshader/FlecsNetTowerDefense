@@ -1,3 +1,9 @@
+using UnitGenerator;
+using UnityEngine;
+
+[UnitOf(typeof(float))]
+public partial struct Emissive { }
+
 public struct Position
 {
     public float X, Y, Z;
@@ -6,6 +12,9 @@ public struct Position
 
     public override string ToString() => $"({X},{Y},{Z})";
 }
+
+[UnitOf(typeof(Vector3))]
+public partial struct GlobalPosition { }
 
 public struct Position2
 {
