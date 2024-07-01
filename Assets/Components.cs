@@ -27,6 +27,8 @@ public struct Box
     public Box(float x, float y, float z) => (X, Y, Z) = (x, y, z);
 }
 
+public struct Enemy { }
+
 public struct Direction
 {
     public int Value;
@@ -37,6 +39,17 @@ public struct Direction
     }
 }
 
-public struct Enemy { }
+
+public struct Bullet { };
+
+public struct Turret
+{
+    public Turret(float fireInterval = 1.0f)
+    {
+        FireInterval = fireInterval;
+    }
+
+    public float FireInterval;
+}
 
 public struct Health { }

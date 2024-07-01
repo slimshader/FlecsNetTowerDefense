@@ -57,9 +57,29 @@ public class prefabs
     public class materials
     {
         public struct Metal { };
+        public struct CannonHead { };
+    }
+
+    public struct Turret
+    {
+        public struct Base { };
+        public struct Head { };
+    };
+
+    public struct Cannon
+    {
+        public struct Head
+        {
+            struct BarrelLeft { }
+            struct BarrelRight { }
+        }
+
+        public struct Barrel { }
     }
 }
 
+
+// scopes
 
 public struct Level
 {
@@ -72,6 +92,8 @@ public struct Level
     public grid<bool> map;
     public Position2 spawn_point;
 }
+
+public struct Turrets { }
 
 public class Main : MonoBehaviour
 {
@@ -86,6 +108,7 @@ public class Main : MonoBehaviour
     const float EnemySize = 0.7f;
     const float EnemySpeed = 4.0f;
     const float EnemySpawnInterval = 0.2f;
+    const float TurretFireInterval = 1.0f;
 
     World ecs;
     private Routine spawnEnemy;
@@ -249,12 +272,35 @@ public class Main : MonoBehaviour
         ecs.Prefab<prefabs.materials.Metal>()
             .Set<Color>(new(.1f, .1f, .1f));
 
+        ecs.Prefab<prefabs.materials.CannonHead>()
+            .Set<Color>(new(.35f, .4f, .3f));
+
         ecs.Prefab<prefabs.Enemy>()
             .IsA<prefabs.materials.Metal>()
             .Add<Enemy>()
             .Add<Health>()
             .SetOverride<Color>(new(.05f, .05f, .05f))
             .Set<Box>(new(EnemySize, EnemySize, EnemySize));
+
+        ecs.Prefab<Turret>();
+        ecs.Prefab<prefabs.Turret.Base>()
+            .Slot()
+            .Set(new Position(0, 0, 0));
+
+        ecs.Prefab().IsA<prefabs.materials.Metal>()
+            .ChildOf<prefabs.Turret.Base>()
+            .Set(new Box(0.6f, 0.2f, 0.6f))
+            .Set(new Position(0, 0.1f, 0));
+
+
+        ecs.Prefab<prefabs.Cannon>()
+            .IsA<prefabs.Turret>()
+            .Set<Turret>(new (TurretFireInterval));
+
+        ecs.Prefab<prefabs.Cannon.Head>()
+            .IsA<prefabs.materials.CannonHead>()
+            .Set(new Box(0.8f, 0.4f, 0.8f))
+            .Set(new Position(0, 0.8f, 0));
     }
 
     void init_level()
@@ -312,6 +358,15 @@ public class Main : MonoBehaviour
 
                         e.ChildOf<Level>();
                         e.IsA<prefabs.Tree>();
+                    }
+                    else
+                    {
+                        e.ChildOf<Turrets>();
+
+                        if (Random.Range(0.0f, 1.0f) > .3f)
+                        {
+                            e.IsA<prefabs.Cannon>();
+                        }
                     }
 
                 }
