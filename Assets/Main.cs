@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using static Flecs.NET.Bindings.Native;
-    
+
 public struct Game
 {
     public Entity Window;
@@ -159,7 +159,52 @@ public class Main : MonoBehaviour
         _cubeMesh = go.GetComponent<MeshFilter>().mesh;
         Destroy(go);
 
-        _transformSystem = ecs.Routine<Position, GlobalPosition, GlobalPosition>()
+
+
+
+        _renderSystem = ecs.Routine<GlobalPosition, Box, Color>()
+            .Each((Entity e, ref GlobalPosition p, ref Box b, ref Color c /*, ref Position pp*/) =>
+        {
+            if (!_renderParams.TryGetValue(c, out var rp))
+            {
+                rp = new MaterialPropertyBlock();
+                rp.SetColor("_Color", c);
+                _renderParams.Add(c, rp);
+            }
+
+            var mtx = Matrix4x4.Translate(p.AsPrimitive()) * Matrix4x4.Scale(new(b.X, b.Y, b.Z));
+
+            renderCommands.Add(new RenderCommand
+            {
+                Mesh = _cubeMesh,
+                Transform = mtx,
+                Material = _baseMaterial,
+                Properties = rp
+            });
+        });
+    }
+
+    public Material _baseMaterial;
+
+    private Dictionary<Color, MaterialPropertyBlock> _renderParams = new();
+    private Routine _transformSystem;
+    private Routine _renderSystem;
+
+    void Update()
+    {
+        renderCommands.Clear();
+
+        ecs.Progress(Time.deltaTime);
+
+        foreach (var cmd in renderCommands)
+        {
+            Graphics.DrawMesh(cmd.Mesh, cmd.Transform, cmd.Material, 0, null, 0, cmd.Properties);
+        }
+    }
+
+    void init_systems()
+    {
+        ecs.Routine<Position, GlobalPosition, GlobalPosition>()
             .TermAt(2).Optional()
             .TermAt(3).Parent().Cascade().Optional()
             .Each((Entity e, ref Position p, ref GlobalPosition global, ref GlobalPosition parentGlobal) =>
@@ -180,56 +225,6 @@ public class Main : MonoBehaviour
                 }
             });
 
-
-        _renderSystem = ecs.Routine<GlobalPosition, Box, Color>()            
-            .Each((Entity e, ref GlobalPosition p, ref Box b, ref Color c) =>
-        {
-            if (!_renderParams.TryGetValue(c, out var rp))
-            {
-                rp = new MaterialPropertyBlock();
-                rp.SetColor("_Color", c);
-                _renderParams.Add(c, rp);
-            }
-
-            var mtx = Matrix4x4.Translate(p.AsPrimitive()) * Matrix4x4.Scale(new(b.X, b.Y, b.Z));
-
-            renderCommands.Add(new RenderCommand
-            {
-                Mesh = _cubeMesh,
-                Transform = mtx,
-                Material = _baseMaterial,
-                Properties = rp
-            });
-            //Graphics.DrawMesh(_cubeMesh, mtx, _baseMaterial, 0, null, 0, rp);
-        });    
-    }
-
-    public Material _baseMaterial;
-
-    private Dictionary<Color, MaterialPropertyBlock> _renderParams = new();
-    private Routine _transformSystem;
-    private Routine _renderSystem;
-
-    void Update()
-    {
-        renderCommands.Clear();
-
-        ecs.Progress(Time.deltaTime);
-
-        //_moveEnemy.Run();
-
-        //_transformSystem.Run();
-
-        //_renderSystem.Run();
-
-        foreach (var cmd in renderCommands)
-        {
-            Graphics.DrawMesh(cmd.Mesh, cmd.Transform, cmd.Material, 0, null, 0, cmd.Properties);
-        }
-    }
-
-    void init_systems()
-    {
         _spawnEnemy = ecs.Routine<Game>().Each((Iter it, int i, ref Game g) =>
         {
             var game = ecs.Get<Game>();
@@ -331,8 +326,6 @@ public class Main : MonoBehaviour
         ecs.Prefab<prefabs.Turret.Base>()
             .Slot()
             .Set(new Position(0, 0, 0));
-        //ecs.Prefab<prefabs.Turret.Head>()
-        //    .Slot();
 
         ecs.Prefab().IsA<prefabs.materials.Metal>()
             .ChildOf<prefabs.Turret.Base>()
@@ -344,16 +337,18 @@ public class Main : MonoBehaviour
             .Set(new Box(0.4f, 0.6f, 0.4f))
             .Set(new Position(0, 0.3f, 0));
 
+        ecs.Prefab<prefabs.Turret.Head>().Slot();
+
 
 
         ecs.Prefab<prefabs.Cannon>()
             .IsA<prefabs.Turret>()
-            .Set<Turret>(new (TurretFireInterval));
+            .Set<Turret>(new(TurretFireInterval));
 
-        //ecs.Prefab<prefabs.Cannon.Head>()
-        //    .IsA<prefabs.materials.CannonHead>()
-        //    .Set(new Box(0.8f, 0.4f, 0.8f))
-        //    .Set(new Position(0, 0.8f, 0));
+        ecs.Prefab<prefabs.Cannon.Head>()
+            .IsA<prefabs.materials.CannonHead>()
+            .Set(new Box(0.8f, 0.4f, 0.8f))
+            .Set(new Position(0, 0.8f, 0));
 
         //ecs.Prefab<prefabs.Cannon.Barrel>()
         //    .IsA<prefabs.materials.Metal>()
