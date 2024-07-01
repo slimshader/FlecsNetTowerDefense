@@ -337,7 +337,7 @@ public class Main : MonoBehaviour
             .Set(new Box(0.4f, 0.6f, 0.4f))
             .Set(new Position(0, 0.3f, 0));
 
-        ecs.Prefab<prefabs.Turret.Head>().Slot();
+        //ecs.Prefab<prefabs.Turret.Head>().Slot();
 
 
 
