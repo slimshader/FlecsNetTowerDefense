@@ -3,6 +3,8 @@ public struct Position
     public float X, Y, Z;
 
     public Position(float x, float y, float z) => (X, Y, Z) = (x, y, z);
+
+    public override string ToString() => $"({X},{Y},{Z})";
 }
 
 public struct Position2

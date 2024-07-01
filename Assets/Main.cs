@@ -1,8 +1,9 @@
 using Flecs.NET.Core;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using static Flecs.NET.Bindings.Native;
-
+    
 public struct Game
 {
     public Entity Window;
@@ -43,6 +44,12 @@ public class grid<T>
 
 public class prefabs
 {
+    public struct Tree
+    {
+        public struct Trunk { }
+        public struct Canopy { }
+    }
+
     public struct Path { };
     public struct Tile { };
     public struct Enemy { };
@@ -68,6 +75,8 @@ public struct Level
 
 public class Main : MonoBehaviour
 {
+    public int _port = 27750;
+
     const int TileCountX = 10;
     const int TileCountZ = 10;
     const float TileSize = 3.0f;
@@ -99,21 +108,6 @@ public class Main : MonoBehaviour
 
         ecs.Set(new EcsRest());
 
-        //ecs.Observer<Position, Color, Box>()
-        //    .With<Position>()
-        //    .With<Color>()
-        //    .With<Box>()
-        //    .Without<View>()
-        //    .Event(Ecs.OnSet)
-        //    .Each((Iter it, int i, ref Position p, ref Color c, ref Box b) =>
-        //    {
-        //        var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        //        v.transform.localScale = new(b.X, b.Y, b.Z);
-        //        v.transform.position = new(p.X, p.Y, p.Z);
-        //        v.GetComponent<Renderer>().material.color = c;
-        //        it.Entity(i).Set(new View() { GameObject = v.gameObject });
-        //    });
-
 
         ecs.Set<Game>(new Game());
 
@@ -127,7 +121,12 @@ public class Main : MonoBehaviour
         _cubeMesh = go.GetComponent<MeshFilter>().mesh;
         Destroy(go);
 
-        _renderSystem = ecs.Routine<Position, Box, Color>().Each((Entity e, ref Position p, ref Box b, ref Color c) =>
+        //var q = ecs.QueryBuilder().Term<Position, Local>, Position>
+
+
+        _renderSystem = ecs.Routine<Position, Box, Color, Position>()
+            .TermAt(4).Parent().Cascade().Optional()
+            .Each((Entity e, ref Position p, ref Box b, ref Color c, ref Position pp) =>
         {
             if (!_renderParams.TryGetValue(c, out var rp))
             {
@@ -136,7 +135,12 @@ public class Main : MonoBehaviour
                 _renderParams.Add(c, rp);
             }
 
-            var mtx = Matrix4x4.Translate(new(p.X, p.Y, p.Z)) * Matrix4x4.Scale(new(b.X, b.Y, b.Z));
+            var parentTransform = Matrix4x4.identity;
+            
+            if (!Unsafe.IsNullRef(ref pp))
+               parentTransform = Matrix4x4.Translate(new (pp.X, pp.Y, pp.Z));
+
+            var mtx = parentTransform * Matrix4x4.Translate(new(p.X, p.Y, p.Z)) * Matrix4x4.Scale(new(b.X, b.Y, b.Z));
 
             Graphics.DrawMesh(_cubeMesh, mtx, _baseMaterial, 0, null, 0, rp);
         });
@@ -220,6 +224,20 @@ public class Main : MonoBehaviour
 
     void init_prefabs()
     {
+        ecs.Prefab<prefabs.Tree>().Scope(() =>
+        {
+            ecs.Prefab<prefabs.Tree.Trunk>()
+                .Set<Position>(new(0, 0.75f, 0))
+                .Set<Color>(new(0.25f, 0.2f, 0.1f))
+                .Set<Box>(new(.5f, 1.5f, .5f));
+
+            ecs.Prefab<prefabs.Tree.Canopy>()
+                .Set<Position>(new(0.0f, 2.0f, 0.0f))
+                .Set<Color>(new(0.2f, 0.3f, 0.15f))
+                .Set<Box>(new(1.5f, 1.8f, 1.5f));
+        });
+
+
         ecs.Prefab<prefabs.Tile>()
             .Set<Color>(new(0.2f, 0.34f, 0.15f))
             .Set<Box>(new(TileSize, TileHeight, TileSize));
@@ -286,7 +304,16 @@ public class Main : MonoBehaviour
                 {
                     t.IsA<prefabs.Tile>();
 
-                    //var e = ecs.Entity().Set<Position>(new(xc, TileHeight / 2, zc));
+                    var e = ecs.Entity().Set<Position>(new(xc, TileHeight / 2, zc));
+
+                    if (Random.Range(0.0f, 1.0f) > .65f)
+                    {
+                        Debug.Log($"Creating tree at {e.Get<Position>()}");
+
+                        e.ChildOf<Level>();
+                        e.IsA<prefabs.Tree>();
+                    }
+
                 }
             }
         }
