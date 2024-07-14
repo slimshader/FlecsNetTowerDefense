@@ -1,8 +1,20 @@
 using Flecs.NET.Core;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 using UnityEngine;
-using static Flecs.NET.Bindings.Native;
+using static Flecs.NET.Bindings.flecs;
+
+public struct Rgb
+{
+    public float R, G, B;
+}
+
+public struct Specular
+{
+    public float a, b;
+}
+
 
 public struct Game
 {
@@ -205,8 +217,8 @@ public class Main : MonoBehaviour
     void init_systems()
     {
         ecs.Routine<Position, GlobalPosition, GlobalPosition>()
-            .TermAt(2).Optional()
-            .TermAt(3).Parent().Cascade().Optional()
+            .TermAt(1).Optional()
+            .TermAt(2).Parent().Cascade().Optional()
             .Each((Entity e, ref Position p, ref GlobalPosition global, ref GlobalPosition parentGlobal) =>
             {
 
@@ -236,8 +248,8 @@ public class Main : MonoBehaviour
         });
 
         _moveEnemy = ecs.Routine<Position, Direction, Game>()
-            .TermAt(3).Singleton()
-            .Term<Enemy>()
+            .TermAt(2).Singleton()
+            .With<Enemy>()
             .Each((Iter it, int i, ref Position p, ref Direction d, ref Game g) =>
             {
                 MoveEnemy(it, i, ref p, ref d, ref g);
@@ -251,6 +263,24 @@ public class Main : MonoBehaviour
         ref var g = ref ecs.GetMut<Game>();
         g.center = new(to_x(TileCountX / 2), 0, to_z(TileCountZ / 2));
         g.size = TileCountX * (TileSize + TileSpacing) + 2;
+
+        // register Box
+        ecs.Component<Box>()
+            .Member<float>("X")
+            .Member<float>("Y")
+            .Member<float>("Z");
+
+        // register Specular component
+        ecs.Component<Specular>()
+            .Member<float>("a")
+            .Member<float>("b");
+
+        ecs.Component<Color>("Rgb")
+            .Member<float>("r")
+            .Member<float>("g")
+            .Member<float>("b");
+
+        ecs.ScriptRunFile(Path.Combine(Application.streamingAssetsPath, "tile.flecs"));
     }
 
     float to_coord(float x)
@@ -299,15 +329,6 @@ public class Main : MonoBehaviour
                 .Set<Box>(new(1.5f, 1.8f, 1.5f));
         });
 
-
-        ecs.Prefab<prefabs.Tile>()
-            .Set<Color>(new(0.2f, 0.34f, 0.15f))
-            .Set<Box>(new(TileSize, TileHeight, TileSize));
-
-        ecs.Prefab<prefabs.Path>()
-            .Set<Color>(new(0.2f, 0.2f, 0.2f))
-            .Set<Box>(new(TileSize + TileSpacing, PathHeight, TileSize + TileSpacing));
-
         ecs.Prefab<prefabs.materials.Metal>()
             .Set<Color>(new(.1f, .1f, .1f));
 
@@ -318,7 +339,7 @@ public class Main : MonoBehaviour
             .IsA<prefabs.materials.Metal>()
             .Add<Enemy>()
             .Add<Health>()
-            .SetOverride<Color>(new(.05f, .05f, .05f))
+            //.SetOverride<Color>(new(.05f, .05f, .05f))
             .Set<Box>(new(EnemySize, EnemySize, EnemySize));
 
         // Turret
