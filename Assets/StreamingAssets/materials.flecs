@@ -1,4 +1,5 @@
-module prefabs.materials
+module tower_defense.materials
+//using flecs.components.*
 
 prefab Beam {
   Rgb: {0.1, 0.4, 1.0}

@@ -34,71 +34,79 @@ public class grid<T>
     public T this[int x, int y] => _values[y * _width + x];
 }
 
-
-public struct Game
-{
-    public Entity Window;
-    public Entity Level;
-
-    public Position center;
-    public float size;
-}
-
-public struct Level
-{
-    public Level(grid<bool> arg_map, Position2 spawn)
-    {
-        map = arg_map;
-        spawn_point = spawn;
-    }
-
-    public grid<bool> map;
-    public Position2 spawn_point;
-}
-
-namespace prefabs
-{
-    public struct Enemy { }
-    public struct Tree
-    {
-        public float height;
-        public float variation;
-    }
-
-    public struct Path { }
-    public struct Tile { }
-
-    public class materials
-    {
-        public struct Metal { };
-        public struct CannonHead { };
-    }
-
-    public struct Turret
-    {
-        public struct Base { };
-        public struct Head { };
-    };
-
-    public struct Cannon
-    {
-        public struct Head
-        {
-            public struct BarrelLeft { }
-            public struct BarrelRight { }
-        }
-
-        public struct Barrel { }
-    }
-}
-
-// scopes
-
+// Components
 namespace tower_defense
 {
-    public struct Enemy { }
-}
+    public struct Game
+    {
+        public Entity Window;
+        public Entity Level;
 
+        public Position center;
+        public float size;
+    }
+
+    public struct Level
+    {
+        public Level(grid<bool> arg_map, Position2 spawn)
+        {
+            map = arg_map;
+            spawn_point = spawn;
+        }
+
+        public grid<bool> map;
+        public Position2 spawn_point;
+    }
+
+    public struct Enemy { }
+
+    public struct Health
+    {
+        public float value;
+    }
+
+    public struct HitCooldown
+    {
+        public float value;
+    }
+
+
+    namespace prefabs
+    {
+        public struct Enemy { }
+        public struct Tree
+        {
+            public float height;
+            public float variation;
+        }
+
+        public struct Path { }
+        public struct Tile { }
+
+        public class materials
+        {
+            public struct Metal { };
+            public struct CannonHead { };
+        }
+
+        public struct Turret
+        {
+            public struct Base { };
+            public struct Head { };
+        };
+
+        public struct Cannon
+        {
+            public struct Head
+            {
+                public struct BarrelLeft { }
+                public struct BarrelRight { }
+            }
+
+            public struct Barrel { }
+        }
+    }
+}
 
 public struct Turrets { }
 
@@ -237,7 +245,7 @@ public class Main : MonoBehaviour
             var game = ecs.Get<Game>();
             var lvl = game.Level.Get<Level>();
 
-            ecs.Entity().IsA<prefabs.Enemy>()
+            ecs.Entity().IsA<tower_defense.prefabs.Enemy>()
             .Set<Direction>(new(0))
             .Set<Position>(new(lvl.spawn_point.X, 1.2f, lvl.spawn_point.Y));
         });
@@ -271,7 +279,7 @@ public class Main : MonoBehaviour
 
     private void RegisterComponents()
     {
-        ecs.Component<Position>("Position")
+        ecs.Component<Position>()
             .Member<float>("X")
             .Member<float>("Y")
             .Member<float>("Z");
@@ -280,6 +288,16 @@ public class Main : MonoBehaviour
             .Member<float>("X")
             .Member<float>("Y")
             .Member<float>("Z");
+
+        // rotation3
+        ecs.Component<Rotation3>()
+            .Member<float>("X")
+            .Member<float>("Y")
+            .Member<float>("Z");
+
+        ecs.Component<Rectangle>()
+            .Member<float>("Width")
+            .Member<float>("Height");
 
         ecs.Component<Box>()
             .Member<float>("X")
@@ -301,14 +319,14 @@ public class Main : MonoBehaviour
             .Member<float>("b");
 
         // tree
-        ecs.Component<prefabs.Tree>()
+        ecs.Component<tower_defense.prefabs.Tree>()
             .Member<float>("height")
             .Member<float>("variation");
 
-        ecs.Component<Health>()
+        ecs.Component<tower_defense.Health>()
             .Member<float>("Value");
 
-        ecs.Component<HitCooldown>()
+        ecs.Component<tower_defense.HitCooldown>()
             .Member<float>("Value");
 
         // enemy
@@ -376,33 +394,33 @@ public class Main : MonoBehaviour
         //    .Set<Box>(new(EnemySize, EnemySize, EnemySize));
 
         // Turret
-        ecs.Prefab<prefabs.Turret>();
-        ecs.Prefab<prefabs.Turret.Base>()
-            .Slot()
-            .Set(new Position(0, 0, 0));
+        //ecs.Prefab<prefabs.Turret>();
+        //ecs.Prefab<prefabs.Turret.Base>()
+        //    .Slot()
+        //    .Set(new Position(0, 0, 0));
 
-        ecs.Prefab().IsA<prefabs.materials.Metal>()
-            .ChildOf<prefabs.Turret.Base>()
-            .Set(new Box(0.6f, 0.2f, 0.6f))
-            .Set(new Position(0, 0.1f, 0));
+        //ecs.Prefab().IsA<prefabs.materials.Metal>()
+        //    .ChildOf<prefabs.Turret.Base>()
+        //    .Set(new Box(0.6f, 0.2f, 0.6f))
+        //    .Set(new Position(0, 0.1f, 0));
 
-        ecs.Prefab().IsA<prefabs.materials.Metal>()
-            .ChildOf<prefabs.Turret.Base>()
-            .Set(new Box(0.4f, 0.6f, 0.4f))
-            .Set(new Position(0, 0.3f, 0));
+        //ecs.Prefab().IsA<prefabs.materials.Metal>()
+        //    .ChildOf<prefabs.Turret.Base>()
+        //    .Set(new Box(0.4f, 0.6f, 0.4f))
+        //    .Set(new Position(0, 0.3f, 0));
 
-        //ecs.Prefab<prefabs.Turret.Head>().Slot();
+        ////ecs.Prefab<prefabs.Turret.Head>().Slot();
 
 
 
-        ecs.Prefab<prefabs.Cannon>()
-            .IsA<prefabs.Turret>()
-            .Set<Turret>(new(TurretFireInterval));
+        //ecs.Prefab<prefabs.Cannon>()
+        //    .IsA<prefabs.Turret>()
+        //    .Set<Turret>(new(TurretFireInterval));
 
-        ecs.Prefab<prefabs.Cannon.Head>()
-            .IsA<prefabs.materials.CannonHead>()
-            .Set(new Box(0.8f, 0.4f, 0.8f))
-            .Set(new Position(0, 0.8f, 0));
+        //ecs.Prefab<prefabs.Cannon.Head>()
+        //    .IsA<prefabs.materials.CannonHead>()
+        //    .Set(new Box(0.8f, 0.4f, 0.8f))
+        //    .Set(new Position(0, 0.8f, 0));
 
         //ecs.Prefab<prefabs.Cannon.Barrel>()
         //    .IsA<prefabs.materials.Metal>()
@@ -455,20 +473,20 @@ public class Main : MonoBehaviour
                 var t = ecs.Entity().Set<Position>(new(xc, 0, zc));
                 if (path[x, z])
                 {
-                    t.IsA<prefabs.Path>();
+                    t.IsA<tower_defense.prefabs.Path>();
                 }
                 else
                 {
-                    t.IsA<prefabs.Tile>();
+                    t.IsA<tower_defense.prefabs.Tile>();
 
                     var e = ecs.Entity().Set<Position>(new(xc, TileHeight / 2, zc));
 
                     if (Random.Range(0.0f, 1.0f) > .65f)
                     {
-                        Debug.Log($"Creating tree at {e.Get<Position>()}");
+                        //Debug.Log($"Creating tree at {e.Get<Position>()}");
 
                         e.ChildOf<Level>();
-                        e.Set(new prefabs.Tree { height = 1.5f + Rand(2.5f), variation = Rand(.1f) });
+                        e.Set(new tower_defense.prefabs.Tree { height = 1.5f + Rand(2.5f), variation = Rand(.1f) });
                     }
                     else
                     {
@@ -476,7 +494,7 @@ public class Main : MonoBehaviour
 
                         if (Random.Range(0.0f, 1.0f) > .3f)
                         {
-                            e.IsA<prefabs.Turret>();
+                            e.IsA<tower_defense.prefabs.Turret>();
                         }
                     }
 

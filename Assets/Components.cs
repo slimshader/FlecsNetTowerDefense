@@ -26,6 +26,11 @@ public struct Position
     public override string ToString() => $"({X},{Y},{Z})";
 }
 
+public struct Rotation3
+{
+    public float X, Y, Z;
+}
+
 [UnitOf(typeof(Vector3))]
 public partial struct GlobalPosition { }
 
@@ -40,6 +45,13 @@ public struct Position2
 public struct Velocity
 {
     public float X, Y, Z;
+}
+
+public struct Rectangle
+{
+    public float Width, Height;
+
+    //public Rectangle(float width, float height) => (Width, Height) = (width, height);
 }
 
 public struct Box
@@ -72,21 +84,4 @@ public struct Turret
     }
 
     public float FireInterval;
-}
-
-public struct Health
-{
-    public float value;
-}
-
-public struct HitCooldown
-{
-    public float value;
-}
-
-public static class Components
-{
-    public static void Register(World ecs)
-    { 
-    }
 }
