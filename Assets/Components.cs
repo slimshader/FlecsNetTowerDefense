@@ -1,8 +1,10 @@
 using UnitGenerator;
 using UnityEngine;
 
-[UnitOf(typeof(float))]
-public partial struct Emissive { }
+public struct Emissive
+{
+    public float Value;
+}
 
 public struct Position
 {

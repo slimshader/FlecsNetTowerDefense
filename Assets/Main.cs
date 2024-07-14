@@ -16,15 +16,6 @@ public struct Specular
 }
 
 
-public struct Game
-{
-    public Entity Window;
-    public Entity Level;
-
-    public Position center;
-    public float size;
-}
-
 public class grid<T>
 {
     private readonly int _width;
@@ -54,7 +45,30 @@ public class grid<T>
     public T this[int x, int y] => _values[y * _width + x];
 }
 
-public class prefabs
+
+public struct Game
+{
+    public Entity Window;
+    public Entity Level;
+
+    public Position center;
+    public float size;
+}
+
+public struct Level
+{
+    public Level(grid<bool> arg_map, Position2 spawn)
+    {
+        map = arg_map;
+        spawn_point = spawn;
+    }
+
+    public grid<bool> map;
+    public Position2 spawn_point;
+}
+
+
+namespace prefabs
 {
     public struct Tree
     {
@@ -90,20 +104,9 @@ public class prefabs
     }
 }
 
-
 // scopes
 
-public struct Level
-{
-    public Level(grid<bool> arg_map, Position2 spawn)
-    {
-        map = arg_map;
-        spawn_point = spawn;
-    }
 
-    public grid<bool> map;
-    public Position2 spawn_point;
-}
 
 public struct Turrets { }
 
@@ -264,7 +267,16 @@ public class Main : MonoBehaviour
         g.center = new(to_x(TileCountX / 2), 0, to_z(TileCountZ / 2));
         g.size = TileCountX * (TileSize + TileSpacing) + 2;
 
-        // register Box
+        RegisterComponents();
+
+        ecs.ScriptRunFile(ScriptPath("materials.flecs"));
+        ecs.ScriptRunFile(ScriptPath("tile.flecs"));
+    }
+
+    private static string ScriptPath(string name) => System.IO.Path.Combine(Application.streamingAssetsPath, name);
+
+    private void RegisterComponents()
+    {
         ecs.Component<Box>()
             .Member<float>("X")
             .Member<float>("Y")
@@ -275,12 +287,14 @@ public class Main : MonoBehaviour
             .Member<float>("a")
             .Member<float>("b");
 
+        // Emmisive component
+        ecs.Component<Emissive>("Emissive")
+            .Member<float>("Value");
+
         ecs.Component<Color>("Rgb")
             .Member<float>("r")
             .Member<float>("g")
             .Member<float>("b");
-
-        ecs.ScriptRunFile(Path.Combine(Application.streamingAssetsPath, "tile.flecs"));
     }
 
     float to_coord(float x)
@@ -328,12 +342,6 @@ public class Main : MonoBehaviour
                 .Set<Color>(new(0.2f, 0.3f, 0.15f))
                 .Set<Box>(new(1.5f, 1.8f, 1.5f));
         });
-
-        ecs.Prefab<prefabs.materials.Metal>()
-            .Set<Color>(new(.1f, .1f, .1f));
-
-        ecs.Prefab<prefabs.materials.CannonHead>()
-            .Set<Color>(new(.35f, .4f, .3f));
 
         ecs.Prefab<prefabs.Enemy>()
             .IsA<prefabs.materials.Metal>()
