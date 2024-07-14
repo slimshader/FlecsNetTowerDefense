@@ -1,5 +1,16 @@
+using Flecs.NET.Core;
 using UnitGenerator;
 using UnityEngine;
+
+public struct Rgb
+{
+    public float R, G, B;
+}
+
+public struct Specular
+{
+    public float a, b;
+}
 
 public struct Emissive
 {
@@ -38,7 +49,7 @@ public struct Box
     public Box(float x, float y, float z) => (X, Y, Z) = (x, y, z);
 }
 
-public struct Enemy { }
+
 
 public struct Direction
 {
@@ -63,4 +74,19 @@ public struct Turret
     public float FireInterval;
 }
 
-public struct Health { }
+public struct Health
+{
+    public float value;
+}
+
+public struct HitCooldown
+{
+    public float value;
+}
+
+public static class Components
+{
+    public static void Register(World ecs)
+    { 
+    }
+}
