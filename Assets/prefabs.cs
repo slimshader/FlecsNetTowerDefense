@@ -32,5 +32,13 @@ namespace tower_defense
                 public struct BarrelRight { }
             }
         }
+
+        public struct Laser
+        {
+            public struct Head
+            {
+                public struct Beam { }
+            }
+        }
     }
 }

@@ -147,6 +147,8 @@ namespace tower_defense
         public float value;
     }
 
+    public struct Laser { }
+
     public struct Target
     {
         Entity target;
@@ -325,6 +327,7 @@ public class Main : MonoBehaviour
         ecs.ScriptRunFile(ScriptPath("enemy.flecs"));
         ecs.ScriptRunFile(ScriptPath("turret.flecs"));
         ecs.ScriptRunFile(ScriptPath("cannon.flecs"));
+        ecs.ScriptRunFile(ScriptPath("laser.flecs"));
 
     }
 
@@ -351,6 +354,12 @@ public class Main : MonoBehaviour
             .Member<float>("X")
             .Member<float>("Y")
             .Member<float>("Z");
+
+        ecs.Component<PointLight>()
+            //.Member<Color>("color")
+            .Member<float>("intensity")
+            .Member<float>("distance");
+
 
         // register Specular component
         ecs.Component<Specular>()
@@ -379,6 +388,7 @@ public class Main : MonoBehaviour
 
         // enemy
         ecs.Component<tower_defense.Enemy>();
+        ecs.Component<tower_defense.Laser>();
 
         // game
         ecs.Component<Game>()
@@ -506,6 +516,10 @@ public class Main : MonoBehaviour
                         if (Rand(1.0f) > 0.3f)
                         {
                             e.IsA<tower_defense.prefabs.Cannon>();
+                        }
+                        else
+                        {
+                            e.IsA<tower_defense.prefabs.Laser>();
                         }
                     }
                 }

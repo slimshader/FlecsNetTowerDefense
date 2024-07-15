@@ -6,6 +6,13 @@ public struct Rgb
     public float R, G, B;
 }
 
+public struct PointLight
+{
+    public Color color;
+    public float intensity;
+    public float distance;
+}
+
 public struct Specular
 {
     public float a, b;
