@@ -7,6 +7,23 @@ using tower_defense;
 using static Utils;
 using static Constants;
 
+public struct vec3
+{
+    public float x, y, z;
+
+    // accessor
+    public float this[int i]
+    {
+        get => i == 0 ? x : i == 1 ? y : z;
+        set
+        {
+            if (i == 0) x = value;
+            else if (i == 1) y = value;
+            else z = value;
+        }
+    }
+}
+
 public static class Utils
 {
     public static int ToInt(this bool b) => b ? 1 : 0;
@@ -111,9 +128,33 @@ namespace tower_defense
         public float value;
     }
 
+    public struct Turret
+    {
+        public Turret(float fire_interval_arg = 1.0f)
+        {
+            lr = 1;
+            t_since_fire = 0;
+            fire_interval = fire_interval_arg;
+        }
+
+        public float fire_interval;
+        public float t_since_fire;
+        public int lr;
+    };
+
     public struct HitCooldown
     {
         public float value;
+    }
+
+    public struct Target
+    {
+        Entity target;
+        vec3 prev_position;
+        vec3 aim_position;
+        float angle;
+        float distance;
+        bool Lock;
     }
 }
 
@@ -282,6 +323,9 @@ public class Main : MonoBehaviour
         ecs.ScriptRunFile(ScriptPath("tile.flecs"));
         ecs.ScriptRunFile(ScriptPath("tree.flecs"));
         ecs.ScriptRunFile(ScriptPath("enemy.flecs"));
+        ecs.ScriptRunFile(ScriptPath("turret.flecs"));
+        ecs.ScriptRunFile(ScriptPath("cannon.flecs"));
+
     }
 
     private static string ScriptPath(string name) => System.IO.Path.Combine(Application.streamingAssetsPath, name);
@@ -342,6 +386,15 @@ public class Main : MonoBehaviour
             .Member(Ecs.Entity, "Level")
             .Member<Position3>("center")
             .Member<float>("size");
+
+        ecs.Component<Turret>()
+            .Member<float>("fire_interval");
+
+        ecs.Component<Target>()
+            .Member(Ecs.Entity, "target")
+            .Member<float>("angle")
+            .Member<float>("distance")
+            .Member<bool>("Lock");
     }
 
     float to_coord(float x)
@@ -449,6 +502,11 @@ public class Main : MonoBehaviour
                     else
                     {
                         e.ChildOf<turrets>();
+
+                        if (Rand(1.0f) > 0.3f)
+                        {
+                            e.IsA<tower_defense.prefabs.Cannon>();
+                        }
                     }
                 }
                 else if (path[x, z] == TileKind.Other)

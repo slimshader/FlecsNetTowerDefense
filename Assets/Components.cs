@@ -76,13 +76,3 @@ public struct Direction
 
 
 public struct Bullet { };
-
-public struct Turret
-{
-    public Turret(float fireInterval = 1.0f)
-    {
-        FireInterval = fireInterval;
-    }
-
-    public float FireInterval;
-}

@@ -14,14 +14,14 @@ namespace tower_defense
 
         public class materials
         {
-            public struct Metal { };
-            public struct CannonHead { };
+            public struct Metal { }
+            public struct CannonHead { }
         }
 
         public struct Turret
         {
-            public struct Base { };
-            public struct Head { };
+            public struct Base { }
+            public struct Head { }
         };
 
         public struct Cannon
@@ -31,8 +31,6 @@ namespace tower_defense
                 public struct BarrelLeft { }
                 public struct BarrelRight { }
             }
-
-            public struct Barrel { }
         }
     }
 }

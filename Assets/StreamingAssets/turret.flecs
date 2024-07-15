@@ -1,0 +1,28 @@
+module tower_defense.prefabs
+//using flecs.components.*
+//using flecs.systems.*
+
+const game = Game[Game]
+const center = $game.center
+
+prefab Turret {
+  
+  auto_override | tower_defense.Target
+  auto_override | tower_defense.Turret
+
+  slot Base {
+    Position3: {0, 0, 0}
+
+    _ : materials.Metal {
+      Box: {0.6, 0.2, 0.6}
+      Position3: {0, 0.1, 0}
+    }
+
+    _ : materials.Metal {
+      Box: {0.4, 0.6, 0.4}
+      Position3: {0, 0.3, 0}
+    }
+  }
+
+  slot Head {}
+}
