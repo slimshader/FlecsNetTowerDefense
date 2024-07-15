@@ -8,7 +8,7 @@ const EnemySize = 0.5
 
 prefab Enemy : materials.Metal {
   tower_defense.Enemy
-  Health
+  Health: {1.0}
   Box: {$EnemySize, $EnemySize, $EnemySize}
   Specular: {0.1, 0.1}
   auto_override | HitCooldown: {}

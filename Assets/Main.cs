@@ -6,6 +6,7 @@ using static Flecs.NET.Bindings.flecs;
 using tower_defense;
 using static Utils;
 using static Constants;
+using tower_defense.prefabs;
 
 public struct vec3
 {
@@ -49,9 +50,11 @@ public static class Constants
     // Game constants
     public const int LevelScale = 1;
 
+    public const float BulletSpeed = 26.0f;
+    public const float BulletDamage = 0.015f;
+
     public const int TileCountX = 20;
     public const int TileCountZ = 20;
-
 }
 
 public sealed class Waypoints
@@ -185,6 +188,7 @@ public class Main : MonoBehaviour
     const float TurretCannonLength = 0.6f;
 
     World ecs;
+    private Routine _hitRandomEnemy;
     private Routine _spawnEnemy;
     private Routine _moveEnemy;
     private Mesh _cubeMesh;
@@ -292,6 +296,40 @@ public class Main : MonoBehaviour
                 }
             });
 
+        _hitRandomEnemy = ecs.Routine<tower_defense.Enemy, Health>().Each((Entity enemy, ref tower_defense.Enemy e, ref Health h) =>
+        {
+            if (Rand(1.0f) < 0.01f)
+            {
+                return;
+            }
+
+            float prevHealth = h.value;
+            h.value -= BulletDamage;
+
+            if (prevHealth > 0.9 && h.value < 0.9)
+            {
+                //explode(ecs, p, 0.2, 0.3, { 0.01, 0.3, 0.3}, { 0.05, 0.7, 0.2});
+                enemy.Set<Color>(new(0.05f, 0.2f, 0.6f));
+            }
+            else if (prevHealth > 0.7 && h.value < 0.7)
+            {
+                //explode(ecs, p, 0.4, 0.5, { 0.01, 0.3, 0.3}, {0.01, 0.2, 0.8});
+                enemy.Set<Color>(new(0.2f, 0.05f, 0.4f));
+            }
+            else if (prevHealth > 0.5 && h.value < 0.5)
+            {
+                //explode(ecs, p, 0.5, 0.5, { 0.3, 0.01, 0.3}, { 0.01, 0.01, 0.7});
+                enemy.Set<Color>(new (0.2f, 0.05f, 0.2f));
+            }
+            else if (prevHealth > 0.3 && h.value < 0.3)
+            {
+                //explode(ecs, p, 0.6, 0.7, { 0.5, 0.2, 0.5}, { 0.8, 0.01, 0.8});
+                enemy.Set<Color>(new (0.1f, 0.03f, 0.0f));
+            }
+        });
+
+        _hitRandomEnemy.Interval(0.2f);
+
         _spawnEnemy = ecs.Routine<Game>().Each((Iter it, int i, ref Game g) =>
         {
             var game = ecs.Get<Game>();
@@ -308,7 +346,7 @@ public class Main : MonoBehaviour
 
         _moveEnemy = ecs.Routine<Position3, Direction, Game>()
             .TermAt(2).Singleton()
-            .With<Enemy>()
+            .With<tower_defense.Enemy>()
             .Each((Iter it, int i, ref Position3 p, ref Direction d, ref Game g) =>
             {
                 MoveEnemy(it, i, ref p, ref d, ref g);
@@ -397,7 +435,7 @@ public class Main : MonoBehaviour
             .Member<Position3>("center")
             .Member<float>("size");
 
-        ecs.Component<Turret>()
+        ecs.Component<tower_defense.Turret>()
             .Member<float>("fire_interval");
 
         ecs.Component<Target>()
