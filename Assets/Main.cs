@@ -5,11 +5,80 @@ using UnityEngine;
 using static Flecs.NET.Bindings.flecs;
 using tower_defense;
 using static Utils;
+using static Constants;
 
 public static class Utils
 {
+    public static int ToInt(this bool b) => b ? 1 : 0;
     public static float Rand(float max) => Random.Range(0.0f, max);
 }
+
+public struct Waypoint
+{
+    public float x, y;
+
+    public static implicit operator Waypoint((float x, float y) p) => new() { x = p.x, y = p.y };
+};
+
+public enum TileKind
+{
+    Turret = 0, // Default
+    Path,
+    Other
+};
+
+public static class Constants
+{
+    // Game constants
+    public const int LevelScale = 1;
+
+    public const int TileCountX = 20;
+    public const int TileCountZ = 20;
+
+}
+
+public sealed class Waypoints
+{
+    public Waypoints(grid<TileKind> g, params Waypoint[] pts)
+    {
+        tiles = g;
+        foreach (Waypoint p in pts)
+            add(p, TileKind.Path);
+    }
+
+    void add(Waypoint next, TileKind kind)
+    {
+        next.x *= LevelScale; next.y *= LevelScale;
+        if (next.x == last.x)
+        {
+            do
+            {
+                last.y += Utils.ToInt(last.y < next.y) - Utils.ToInt(last.y > next.y);
+                tiles.set((int)last.x, (int)last.y, kind);
+            } while (next.y != last.y);
+        }
+        else if (next.y == last.y)
+        {
+            do
+            {
+                last.x += Utils.ToInt(last.x < next.x) - Utils.ToInt(last.x > next.x);
+                tiles.set((int)(int)last.x, (int)last.y, kind);
+            } while (next.x != last.x);
+        }
+
+        last.x = next.x;
+        last.y = next.y;
+    }
+
+    void fromTo(Waypoint first, Waypoint second, TileKind kind)
+    {
+        last = first;
+        add(second, kind);
+    }
+
+    grid<TileKind> tiles;
+    Waypoint last;
+};
 
 // Components
 namespace tower_defense
@@ -25,13 +94,13 @@ namespace tower_defense
 
     public struct Level
     {
-        public Level(grid<bool> arg_map, Position2 spawn)
+        public Level(grid<TileKind> arg_map, Position2 spawn)
         {
             map = arg_map;
             spawn_point = spawn;
         }
 
-        public grid<bool> map;
+        public grid<TileKind> map;
         public Position2 spawn_point;
     }
 
@@ -51,14 +120,13 @@ namespace tower_defense
 // scopes
 public struct level { }
 public struct enemies { }
-public struct Turrets { }
+public struct turrets { }
 
 public class Main : MonoBehaviour
 {
     public ushort _port = 27750;
 
-    const int TileCountX = 10;
-    const int TileCountZ = 10;
+
     const float TileSize = 3.0f;
     const float TileSpacing = 0;
     const float TileHeight = 0.5f;
@@ -207,7 +275,7 @@ public class Main : MonoBehaviour
     void init_game()
     {
         ref var g = ref ecs.Ensure<Game>();
-        g.center = new(to_x(TileCountX / 2), 0, to_z(TileCountZ / 2));
+        g.center = new(toX(TileCountX / 2), 0, toZ(TileCountZ / 2));
         g.size = TileCountX * (TileSize + TileSpacing) + 2;
 
         ecs.ScriptRunFile(ScriptPath("materials.flecs"));
@@ -281,12 +349,12 @@ public class Main : MonoBehaviour
         return x * (TileSpacing + TileSize) - (TileSize / 2.0f);
     }
 
-    float to_x(float x)
+    float toX(float x)
     {
         return to_coord(x + 0.5f) - to_coord((TileCountX / 2.0f));
     }
 
-    float to_z(float z)
+    float toZ(float z)
     {
         return to_coord(z);
     }
@@ -308,68 +376,84 @@ public class Main : MonoBehaviour
 
     void init_level()
     {
-        ref Game g = ref ecs.GetMut<Game>();
+        ref Game g = ref ecs.Ensure<Game>();
 
-        grid<bool> path = new grid<bool>(TileCountX, TileCountZ);
-        path.set(0, 1, true); path.set(1, 1, true); path.set(2, 1, true);
-        path.set(3, 1, true); path.set(4, 1, true); path.set(5, 1, true);
-        path.set(6, 1, true); path.set(7, 1, true); path.set(8, 1, true);
-        path.set(8, 2, true); path.set(8, 3, true); path.set(7, 3, true);
-        path.set(6, 3, true); path.set(5, 3, true); path.set(4, 3, true);
-        path.set(3, 3, true); path.set(2, 3, true); path.set(1, 3, true);
-        path.set(1, 4, true); path.set(1, 5, true); path.set(1, 6, true);
-        path.set(1, 7, true); path.set(1, 8, true); path.set(2, 8, true);
-        path.set(3, 8, true); path.set(4, 8, true); path.set(4, 7, true);
-        path.set(4, 6, true); path.set(4, 5, true); path.set(5, 5, true);
-        path.set(6, 5, true); path.set(7, 5, true); path.set(8, 5, true);
-        path.set(8, 6, true); path.set(8, 7, true); path.set(7, 7, true);
-        path.set(6, 7, true); path.set(6, 8, true); path.set(6, 9, true);
-        path.set(7, 9, true); path.set(8, 9, true); path.set(9, 9, true);
+        var path = new grid<TileKind>(TileCountX * LevelScale, TileCountZ * LevelScale);
+
+        Waypoints waypoints = new Waypoints(path, new Waypoint[]
+        {
+            (0, 1), (8, 1), (8, 3), (1, 3), (1, 8), (4, 8), (4, 5), (8, 5), (8, 7),
+            (6, 7), (6, 9), (11, 9), (11, 1), (18, 1), (18, 3), (16, 3), (16, 5),
+            (18, 5), (18, 7), (16, 7), (16, 9), (18, 9), (18, 12), (1, 12), (1, 18),
+            (3, 18), (3, 15), (5, 15), (5, 18), (7, 18), (7, 15), (9, 15), (9, 18),
+            (12, 18), (12, 14), (18, 14), (18, 16), (14, 16), (14, 19), (19, 19)
+        });
 
         Position2 spawn_point = new(
-        to_x(TileCountX - 1),
-        to_z(TileCountZ - 1));
+            toX(TileCountX - 1),
+            toZ(TileCountZ - 1));
 
-        g.Level = ecs.Entity().Set<Level>(new(path, spawn_point));
+        g.Level = ecs.Entity().ChildOf<Level>()
+            .Set<Level>(new(path, spawn_point));
 
-        ecs.Entity()
-            .Set<Position3>(new(0, -2.5f, to_z(TileCountZ / 2.0f - 0.5f)))
-            .Set<Box>(new(to_x(TileCountX + 0.5f) * 2, 5, to_z(TileCountZ + 2)))
+        ecs.Entity("GroundPlane")
+            .ChildOf<level>()
+            .Set<Position3>(new(0, -2.7f, toZ(TileCountZ / 2.0f - 0.5f)))
+            .Set<Box>(new(toX(TileCountX + 0.5f) * 20, 5, toZ(TileCountZ + 2) * 10))
             .Set<Color>(new(0.11f, 0.15f, 0.1f));
 
-        for (int x = 0; x < TileCountX; x++)
+        for (int x = 0; x < TileCountX * LevelScale; x++)
         {
-            for (int z = 0; z < TileCountZ; z++)
+            for (int z = 0; z < TileCountZ * LevelScale; z++)
             {
-                float xc = to_x(x);
-                float zc = to_z(z);
+                float xc = toX(x);
+                float zc = toZ(z);
 
                 var t = ecs.Entity().ChildOf<level>().Set<Position3>(new(xc, 0, zc));
-                if (path[x, z])
+                if (path[x, z] == TileKind.Path)
                 {
                     t.IsA<tower_defense.prefabs.Path>();
                 }
-                else
+                else if (path[x, z] == TileKind.Turret)
                 {
                     t.IsA<tower_defense.prefabs.Tile>();
 
+
+                    bool canTurret = false;
+                    if (x < (TileCountX * LevelScale - 1) && (z < (TileCountZ * LevelScale - 1)))
+                    {
+                        canTurret |= (path[x + 1, z] == TileKind.Path);
+                        canTurret |= (path[x, z + 1] == TileKind.Path);
+                    }
+                    if (x > 0 && z > 0)
+                    {
+                        canTurret |= (path[x - 1, z] == TileKind.Path);
+                        canTurret |= (path[x, z - 1] == TileKind.Path);
+                    }
+
                     var e = ecs.Entity().Set<Position3>(new(xc, TileHeight / 2, zc));
 
-                    if (Rand(1.0f) > .65f)
+                    if (!canTurret || Rand(1.0f) > 3.0f)
                     {
-                        e.ChildOf<level>();
-                        e.Set(new tower_defense.prefabs.Tree { height = 1.5f + Rand(2.5f), variation = Rand(.1f) });
+                        if (Rand(1.0f) > .05f)
+                        {
+                            e.ChildOf<level>();
+                            e.Set(new tower_defense.prefabs.Tree { height = 1.5f + Rand(2.5f), variation = Rand(.1f) });
+                            e.Set(new Rotation3(0.0f, Rand(2.0f * Mathf.PI), 0.0f));
+                        }
+                        else
+                        {
+                            e.Destruct();
+                        }
                     }
                     else
                     {
-                        e.ChildOf<Turrets>();
-
-                        if (Rand(1.0f) > .3f)
-                        {
-                            e.IsA<tower_defense.prefabs.Turret>();
-                        }
+                        e.ChildOf<turrets>();
                     }
-
+                }
+                else if (path[x, z] == TileKind.Other)
+                {
+                    t.IsA<tower_defense.prefabs.Tile>();
                 }
             }
         }
@@ -390,7 +474,7 @@ public class Main : MonoBehaviour
         // If enemy is in center of tile, decide where to go next
         if (td_x < 0.1 && td_y < 0.1)
         {
-            grid<bool> tiles = lvl.map;
+            var tiles = lvl.map;
 
             // Compute backwards direction so we won't try to go there
             int backwards = (d.Value + 2) % 4;
@@ -406,7 +490,7 @@ public class Main : MonoBehaviour
                     if (n_y >= 0 && n_y <= TileCountZ)
                     {
                         // Next tile is still on the grid, test if it's a path
-                        if (tiles[n_x, n_y])
+                        if (tiles[n_x, n_y] == TileKind.Path)
                         {
                             // Next tile is a path, so continue along current direction
                             return false;

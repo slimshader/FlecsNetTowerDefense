@@ -28,6 +28,8 @@ public struct Position3
 public struct Rotation3
 {
     public float X, Y, Z;
+
+    public Rotation3(float x, float y, float z) => (X, Y, Z) = (x, y, z);
 }
 
 [UnitOf(typeof(Vector3))]
