@@ -1,4 +1,3 @@
-using Flecs.NET.Core;
 using UnitGenerator;
 using UnityEngine;
 
@@ -17,11 +16,11 @@ public struct Emissive
     public float Value;
 }
 
-public struct Position
+public struct Position3
 {
     public float X, Y, Z;
 
-    public Position(float x, float y, float z) => (X, Y, Z) = (x, y, z);
+    public Position3(float x, float y, float z) => (X, Y, Z) = (x, y, z);
 
     public override string ToString() => $"({X},{Y},{Z})";
 }
